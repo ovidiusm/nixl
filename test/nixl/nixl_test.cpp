@@ -27,9 +27,10 @@
 #include "serdes/serdes.h"
 #include <mutex>
 #include <vector>
+#include <condition_variable>
 
 #define NUM_TRANSFERS 2
-#define NUM_THREADS 4
+#define NUM_THREADS 9999
 #define SIZE 1024
 #define MEM_VAL 0xBB
 
@@ -69,7 +70,7 @@ static std::vector<std::unique_ptr<uint8_t[]>> initMem(nixlAgent &agent,
     return addrs;
 }
 
-static void targetThread(nixlAgent &agent, nixl_opt_args_t *extra_params, int thread_id) {
+static void targetThread(nixlAgent &agent, nixl_opt_args_t *extra_params, int thread_id, std::condition_variable &cv, std::mutex &mtx, int &count) {
     nixl_reg_dlist_t dram_for_ucx(DRAM_SEG);
     auto addrs = initMem(agent, dram_for_ucx, extra_params, 0);
 
@@ -87,6 +88,17 @@ static void targetThread(nixlAgent &agent, nixl_opt_args_t *extra_params, int th
 
     std::cout << "Thread " << thread_id << " Wait for initiator and then send xfer descs\n";
     std::string message = serdes.exportStr();
+
+    // Barrier to synchronize threads before calling genNotif, ensuring a race.
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        if (++count < NUM_THREADS) {
+            cv.wait(lock, [&count] { return count >= NUM_THREADS; });
+        } else {
+            cv.notify_all();
+        }
+    }
+
     while (agent.genNotif(initiator, message, extra_params) != NIXL_SUCCESS);
     std::cout << "Thread " << thread_id << " End Control Path metadata exchanges\n";
 
@@ -129,6 +141,10 @@ static void initiatorThread(nixlAgent &agent, nixl_opt_args_t *extra_params,
     md_extra_params.port = target_port;
 
     agent.fetchRemoteMD(target, &md_extra_params);
+
+    // Give target threads time to hit the genNotif call before we send our MD
+    std::cout << "Thread " << thread_id << " delaying before sending metadata to trigger race.\n";
+    std::this_thread::sleep_for(std::chrono::seconds(3));
 
     agent.sendLocalMD(&md_extra_params);
 
@@ -219,8 +235,11 @@ static void runTarget(const std::string &ip, int port, nixl_thread_sync_t sync_m
     extra_params.backends.push_back(ucx);
 
     std::vector<std::thread> threads;
+    std::mutex mtx;
+    std::condition_variable cv;
+    int count = 0;
     for (int i = 0; i < NUM_THREADS; i++)
-        threads.emplace_back(targetThread, std::ref(agent), &extra_params, i);
+        threads.emplace_back(targetThread, std::ref(agent), &extra_params, i, std::ref(cv), std::ref(mtx), std::ref(count));
 
     for (auto &thread : threads)
         thread.join();
