@@ -60,7 +60,6 @@ nixl_status_t ucx_status_to_nixl(ucs_status_t status)
         return NIXL_ERR_INVALID_PARAM;
     default:
         NIXL_WARN << "Unexpected UCX error: " << ucs_status_string(status);
-        throw std::runtime_error("Unexpected UCX error: " + std::string(ucs_status_string(status)));
         return NIXL_ERR_BACKEND;
     }
 }
