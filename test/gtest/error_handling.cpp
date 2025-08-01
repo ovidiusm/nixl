@@ -180,6 +180,8 @@ TestErrorHandling::Agent::waitForCompletion(nixlXferReqH* req_handle) {
         status = m_priv->getXferStatus(req_handle);
     } while (status == NIXL_IN_PROG);
 
+    std::cerr << "waitForCompletion status: " << nixlEnumStrings::statusStr(status) << std::endl;
+
     m_priv->releaseXferReq(req_handle);
     return status;
 }
