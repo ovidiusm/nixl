@@ -630,7 +630,6 @@ int nixlUcxWorker::regAmCallback(unsigned msg_id, ucp_am_recv_callback_t cb, voi
 
 int nixlUcxWorker::progress()
 {
-    NIXL_WARN << "ucp_worker_progress";
     return ucp_worker_progress(worker.get());
 }
 
@@ -639,9 +638,7 @@ nixl_status_t nixlUcxWorker::test(nixlUcxReq req)
     if(req == nullptr) {
         return NIXL_SUCCESS;
     }
-    NIXL_WARN << "ucp_worker_progress";
     ucp_worker_progress(worker.get());
-    NIXL_WARN << "ucp_request_check_status " << " req=" << req;
     return ucx_status_to_nixl(ucp_request_check_status(req));
 }
 
@@ -659,7 +656,6 @@ void nixlUcxWorker::reqCancel(nixlUcxReq req)
 
 nixl_status_t
 nixlUcxWorker::arm() const noexcept {
-    NIXL_WARN << "ucp_worker_arm";
     return ucx_status_to_nixl(ucp_worker_arm(worker.get()));
 }
 
