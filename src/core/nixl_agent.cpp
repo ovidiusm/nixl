@@ -158,6 +158,7 @@ nixlAgentData::nixlAgentData(const std::string &name, const nixlAgentConfig &cfg
 }
 
 nixlAgentData::~nixlAgentData() {
+    memorySection->checkLeaks();
     delete memorySection;
 
     // explicitly reset telemetry so i can publish backend events before destroying backends

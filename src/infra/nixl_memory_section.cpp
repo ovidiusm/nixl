@@ -23,11 +23,23 @@
 #include "backend/backend_engine.h"
 #include "nixl_types.h"
 #include "serdes/serdes.h"
+#include "nixl_log.h"
 
 /*** Class nixlMemSection implementation ***/
 
 // It's pure virtual, but base also class needs a destructor due to its members.
 nixlMemSection::~nixlMemSection () {}
+
+void nixlMemSection::checkLeaks() const {
+    // Log both section key and value
+    for (auto & sm: sectionMap) {
+        nixl_mem_t mem = sm.first.first;
+        nixl_sec_dlist_t *dlist = sm.second;
+        if (dlist->descCount() == 0)
+            continue;
+        NIXL_ERROR << "Leaked descriptors: " << mem;
+    }
+}
 
 backend_set_t* nixlMemSection::queryBackends (const nixl_mem_t &mem) {
     if (mem<DRAM_SEG || mem>FILE_SEG)

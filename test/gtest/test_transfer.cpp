@@ -61,6 +61,18 @@ public:
         return size;
     }
 
+    void markRegistered()
+    {
+        assert(!registered);
+        registered = true;
+    }
+
+    void markUnregistered()
+    {
+        assert(registered);
+        registered = false;
+    }
+
 private:
     static void *allocate(size_t size, nixl_mem_t mem_type)
     {
@@ -94,6 +106,7 @@ private:
     }
 
     const size_t size;
+    bool registered = false;
 };
 
 class TestTransfer :
@@ -216,9 +229,12 @@ protected:
         return desc_list;
     }
 
-    void registerMem(nixlAgent &agent, const std::vector<MemBuffer> &buffers,
+    void registerMem(nixlAgent &agent, std::vector<MemBuffer> &buffers,
                      nixl_mem_t mem_type)
     {
+        for (auto &buffer : buffers) {
+            buffer.markRegistered();
+        }
         auto reg_list = makeDescList<nixlBlobDesc>(buffers, mem_type);
         agent.registerMem(reg_list);
     }
@@ -297,8 +313,11 @@ protected:
 
     void
     deregisterMem(nixlAgent &agent,
-                  const std::vector<MemBuffer> &buffers,
+                  std::vector<MemBuffer> &buffers,
                   nixl_mem_t mem_type) const {
+        for (auto &buffer : buffers) {
+            buffer.markUnregistered();
+        }
         const auto desc_list = makeDescList<nixlBlobDesc>(buffers, mem_type);
         agent.deregisterMem(desc_list);
     }

@@ -99,6 +99,8 @@ class nixlMemSection {
     public:
         nixlMemSection () {};
 
+        void checkLeaks() const;
+
         backend_set_t* queryBackends (const nixl_mem_t &mem);
 
         nixl_status_t populate (const nixl_xfer_dlist_t &query,
