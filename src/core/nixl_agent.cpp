@@ -417,6 +417,14 @@ nixlAgent::registerMem(const nixl_reg_dlist_t &descs,
     nixl_status_t   ret;
     unsigned int    count = 0;
 
+    // Check memory alignment
+    for (const auto &desc : descs) {
+        if (desc.addr % 4096 != 0) {
+            NIXL_ERROR_FUNC << "memory alignment is not page-aligned";
+            throw std::runtime_error("memory alignment is not page-aligned");
+        }
+    }
+
     NIXL_LOCK_GUARD(data->lock);
     if (!extra_params || extra_params->backends.size() == 0) {
         backend_list = &data->memToBackend[descs.getType()];
