@@ -40,6 +40,8 @@ constexpr auto min_chrono_time = std::chrono::steady_clock::time_point::min();
 
 namespace gtest {
 
+    const size_t page_size = sysconf(_SC_PAGESIZE);
+
 class MemBuffer : std::shared_ptr<void> {
 public:
     MemBuffer(size_t size, nixl_mem_t mem_type = DRAM_SEG) :
@@ -64,12 +66,17 @@ public:
 private:
     static void *allocate(size_t size, nixl_mem_t mem_type)
     {
+        void *ptr;
+        int err;
         switch (mem_type) {
         case DRAM_SEG:
-            return malloc(size);
+            err = posix_memalign(&ptr, page_size, size);
+            if (err != 0) {
+                throw std::runtime_error("posix_memalign failed");
+            }
+            return ptr;
 #ifdef HAVE_CUDA
         case VRAM_SEG:
-            void *ptr;
             return cudaSuccess == cudaMalloc(&ptr, size)? ptr : nullptr;
 #endif
         default:
