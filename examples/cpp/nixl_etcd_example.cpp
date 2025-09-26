@@ -20,6 +20,8 @@
 #include <chrono>
 #include <cstring>
 
+#include <unistd.h>
+
 #include "nixl.h"
 
 // Change these values to match your etcd setup
@@ -77,6 +79,16 @@ void printParams(const nixl_b_params_t& params, const nixl_mem_list_t& mems) {
     }
 }
 
+void* allocate(size_t size) {
+    static size_t page_size = sysconf(_SC_PAGESIZE);
+    void* addr;
+    int err = posix_memalign(&addr, page_size, size);
+    if (err != 0) {
+        throw std::runtime_error("posix_memalign failed");
+    }
+    return addr;
+}
+
 // Register a memory buffer with the agent
 nixl_status_t registerMemory(void** addr, nixlAgent* agent, nixl_reg_dlist_t* dlist, nixl_opt_args_t* extra_params, nixlBackendH* backend, uint8_t pattern) {
     // Create an optional parameters structure
@@ -84,7 +96,7 @@ nixl_status_t registerMemory(void** addr, nixlAgent* agent, nixl_reg_dlist_t* dl
 
     // Allocate and initialize a buffer
     size_t buffer_size = 1024;
-    *addr = malloc(buffer_size);
+    *addr = allocate(buffer_size);
 
     memset(*addr, pattern, buffer_size);
 

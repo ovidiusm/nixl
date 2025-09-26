@@ -19,6 +19,7 @@
 #include <cstring>
 
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "nixl.h"
 
@@ -42,6 +43,22 @@ bool equal_buf (void* buf1, void* buf2, size_t len) {
     return true;
 }
 
+void* allocate(size_t size) {
+    static size_t page_size = sysconf(_SC_PAGESIZE);
+    void* addr;
+    int err = posix_memalign(&addr, page_size, size);
+    if (err != 0) {
+        throw std::runtime_error("posix_memalign failed");
+    }
+    return addr;
+}
+
+void *allocate_zeroed(size_t size) {
+    void* addr = allocate(size);
+    memset(addr, 0, size);
+    return addr;
+}
+
 void test_side_perf(nixlAgent* A1, nixlAgent* A2, nixlBackendH* backend, nixlBackendH* backend2) {
 
     int n_mems = 32;
@@ -60,8 +77,8 @@ void test_side_perf(nixlAgent* A1, nixlAgent* A2, nixlBackendH* backend, nixlBac
     nixlDlistH *src_side[n_iters];
     nixlDlistH *dst_side[n_iters];
 
-    void* src_buf = malloc(n_mems*descs_per_mem*8);
-    void* dst_buf = malloc(n_mems*descs_per_mem*8);
+    void* src_buf = allocate(n_mems*descs_per_mem*8);
+    void* dst_buf = allocate(n_mems*descs_per_mem*8);
 
     for(int i = 0; i<n_mems; i++) {
         nixlBlobDesc src_desc((uintptr_t) src_buf + i*descs_per_mem*8, descs_per_mem*8, 0);
@@ -192,8 +209,8 @@ nixl_status_t partialMdTest(nixlAgent* A1, nixlAgent* A2, nixlBackendH* backend1
     // Allocate buffers and create memory descriptors
     for (int update_idx = 0; update_idx < NUM_UPDATES; update_idx++) {
         for (int buf_idx = 0; buf_idx < NUM_BUFFERS; buf_idx++) {
-            src_bufs[update_idx][buf_idx] = calloc(1, BUF_SIZE);
-            dst_bufs[update_idx][buf_idx] = calloc(1, BUF_SIZE);
+            src_bufs[update_idx][buf_idx] = allocate_zeroed(BUF_SIZE);
+            dst_bufs[update_idx][buf_idx] = allocate_zeroed(BUF_SIZE);
 
             nixlBlobDesc src_desc((uintptr_t)src_bufs[update_idx][buf_idx], BUF_SIZE, 0);
             nixlBlobDesc dst_desc((uintptr_t)dst_bufs[update_idx][buf_idx], BUF_SIZE, 0);
@@ -392,9 +409,9 @@ nixl_status_t sideXferTest(nixlAgent* A1, nixlAgent* A2, nixlXferReqH* src_handl
     nixlBlobDesc src_desc[n_bufs], dst_desc[n_bufs];
     for(int i = 0; i<n_bufs; i++) {
 
-        src_bufs[i] = calloc(1, len);
+        src_bufs[i] = allocate_zeroed(len);
         std::cout << " src " << i << " " << src_bufs[i] << "\n";
-        dst_bufs[i] = calloc(1, len);
+        dst_bufs[i] = allocate_zeroed(len);
         std::cout << " dst " << i << " " << dst_bufs[i] << "\n";
 
         src_desc[i].len = len;
@@ -616,12 +633,11 @@ int main()
     nixlBlobDesc buff1, buff2, buff3;
     nixl_reg_dlist_t dlist1(DRAM_SEG), dlist2(DRAM_SEG);
     size_t len = 256;
-    void* addr1 = calloc(1, len);
-    void* addr2 = calloc(1, len);
-    void* addr3 = calloc(1, len);
+    void* addr1 = allocate_zeroed(len);
+    void* addr2 = allocate_zeroed(len);
+    void* addr3 = allocate_zeroed(len);
 
     memset(addr1, 0xbb, len);
-    memset(addr2, 0, len);
 
     buff1.addr   = (uintptr_t) addr1;
     buff1.len    = len;

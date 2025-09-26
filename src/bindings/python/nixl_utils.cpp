@@ -15,12 +15,23 @@
  * limitations under the License.
  */
 #include <pybind11/pybind11.h>
+#include <unistd.h>
 
 namespace py = pybind11;
 
+void* allocate(size_t size) {
+    static size_t page_size = sysconf(_SC_PAGESIZE);
+    void* addr;
+    int err = posix_memalign(&addr, page_size, size);
+    if (err != 0) {
+        throw std::runtime_error("posix_memalign failed");
+    }
+    return addr;
+}
+
 //JUST FOR TESTING
 uintptr_t malloc_passthru(int size) {
-    return (uintptr_t) malloc(size);
+    return (uintptr_t) allocate(size);
 }
 
 //JUST FOR TESTING

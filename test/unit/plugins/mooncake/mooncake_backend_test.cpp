@@ -19,6 +19,8 @@
 #include <string>
 #include <cassert>
 
+#include <unistd.h>
+
 #include "mooncake_backend.h"
 
 #ifdef HAVE_CUDA
@@ -187,12 +189,27 @@ cudaQueryAddr(void *address, bool &is_dev, CUdevice &dev, CUcontext &ctx) {
 
 #endif
 
+void* allocate(size_t size) {
+    static size_t page_size = sysconf(_SC_PAGESIZE);
+    void* addr;
+    int err = posix_memalign(&addr, page_size, size);
+    if (err != 0) {
+        throw std::runtime_error("posix_memalign failed");
+    }
+    return addr;
+}
+
+void *allocate_zeroed(size_t size) {
+    void* addr = allocate(size);
+    memset(addr, 0, size);
+    return addr;
+}
 
 void
 allocateBuffer(nixl_mem_t mem_type, int dev_id, size_t len, void *&addr) {
     switch (mem_type) {
     case DRAM_SEG:
-        addr = calloc(1, len);
+        addr = allocate_zeroed(len);
         break;
 #ifdef HAVE_CUDA
     case VRAM_SEG: {
@@ -259,7 +276,7 @@ getValidationPtr(nixl_mem_t mem_type, void *addr, size_t len) {
         break;
 #ifdef HAVE_CUDA
     case VRAM_SEG: {
-        void *ptr = calloc(len, 1);
+        void *ptr = allocate_zeroed(len);
         checkCudaError(cudaMemcpy(ptr, addr, len, cudaMemcpyDeviceToHost), "Failed to memcpy");
         return ptr;
     }

@@ -300,6 +300,16 @@ namespace {
     }
 }
 
+void* allocate(size_t size) {
+    static size_t page_size = sysconf(_SC_PAGESIZE);
+    void* addr;
+    int err = posix_memalign(&addr, page_size, size);
+    if (err != 0) {
+        throw std::runtime_error("posix_memalign failed");
+    }
+    return addr;
+}
+
 int main(int argc, char *argv[]) {
     // Default parameters
     int num_threads = default_num_threads;
@@ -404,7 +414,7 @@ int main(int argc, char *argv[]) {
     std::vector<tempFile> files;
     for (int i = 0; i < num_threads * transfers_per_thread; i++) {
         // Allocate DRAM buffer
-        void* ptr = malloc(transfer_size);
+        void* ptr = allocate(transfer_size);
         if (!ptr) {
             std::cerr << "Failed to allocate DRAM buffer" << std::endl;
             return 1;

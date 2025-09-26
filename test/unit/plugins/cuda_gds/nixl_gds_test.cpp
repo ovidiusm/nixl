@@ -26,6 +26,7 @@
 #include <cerrno>
 #include <cstring>
 #include <getopt.h>
+#include <unistd.h>
 #include "nixl_descriptors.h"
 #include "nixl_params.h"
 #include "nixl.h"
@@ -133,9 +134,19 @@ void fill_test_pattern(void* buffer, size_t size) {
     }
 }
 
+void* allocate(size_t size) {
+    static size_t page_size = sysconf(_SC_PAGESIZE);
+    void* addr;
+    int err = posix_memalign(&addr, page_size, size);
+    if (err != 0) {
+        return nullptr;
+    }
+    return addr;
+}
+
 // Helper function to fill GPU buffer with repeating pattern
 cudaError_t fill_gpu_test_pattern(void* gpu_buffer, size_t size) {
-    char* host_buffer = (char*)malloc(size);
+    void* host_buffer = allocate(size);
     if (!host_buffer) {
         return cudaErrorMemoryAllocation;
     }
@@ -156,8 +167,8 @@ cudaError_t clear_gpu_buffer(void* gpu_buffer, size_t size) {
 
 // Helper function to validate GPU buffer
 bool validate_gpu_buffer(void* gpu_buffer, size_t size) {
-    char* host_buffer = (char*)malloc(size);
-    char* expected_buffer = (char*)malloc(size);
+    char* host_buffer = (char*)allocate(size);
+    char* expected_buffer = (char*)allocate(size);
     if (!host_buffer || !expected_buffer) {
         free(host_buffer);
         free(expected_buffer);
@@ -667,7 +678,7 @@ int main(int argc, char *argv[])
                 }
             }
             if (use_dram) {
-                char* expected_buffer = (char*)malloc(transfer_size);
+                char* expected_buffer = (char*)allocate(transfer_size);
                 if (!expected_buffer) {
                     std::cerr << "Failed to allocate validation buffer\n";
                     goto cleanup;

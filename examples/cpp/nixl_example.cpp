@@ -19,6 +19,7 @@
 #include <cstring>
 
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "nixl.h"
 
@@ -62,6 +63,22 @@ void printParams(const nixl_b_params_t& params, const nixl_mem_list_t& mems) {
     for (const auto& elm : mems) {
         std::cout << "  " << nixlEnumStrings::memTypeStr(elm) << std::endl;
     }
+}
+
+void* allocate(size_t size) {
+    static size_t page_size = sysconf(_SC_PAGESIZE);
+    void* addr;
+    int err = posix_memalign(&addr, page_size, size);
+    if (err != 0) {
+        throw std::runtime_error("posix_memalign failed");
+    }
+    return addr;
+}
+
+void *allocate_zeroed(size_t size) {
+    void* addr = allocate(size);
+    memset(addr, 0, size);
+    return addr;
 }
 
 int main()
@@ -133,11 +150,10 @@ int main()
     nixlBlobDesc buff1, buff2, buff3;
     nixl_reg_dlist_t dlist1(DRAM_SEG), dlist2(DRAM_SEG);
     size_t len = 256;
-    void* addr1 = calloc(1, len);
-    void* addr2 = calloc(1, len);
+    void* addr1 = allocate_zeroed(len);
+    void* addr2 = allocate_zeroed(len);
 
     memset(addr1, 0xbb, len);
-    memset(addr2, 0, len);
 
     buff1.addr   = (uintptr_t) addr1;
     buff1.len    = len;
