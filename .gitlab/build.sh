@@ -152,6 +152,16 @@ rm "libfabric-${LIBFABRIC_VERSION#v}.tar.bz2"
 
 ( \
   cd /tmp && \
+  ARCH_SUFFIX=$(if [ "${ARCH}" = "aarch64" ]; then echo "arm64"; else echo "amd64"; fi) && \
+  MELLANOX_OS="$(. /etc/lsb-release; echo ${DISTRIB_ID}${DISTRIB_RELEASE} | tr A-Z a-z | tr -d .)" && \
+  wget --tries=3 --waitretry=5 https://www.mellanox.com/downloads/DOCA/DOCA_v3.1.0/host/doca-host_3.1.0-091000-25.07-${MELLANOX_OS}_${ARCH_SUFFIX}.deb -O doca-host.deb && \
+  $SUDO dpkg -i doca-host.deb && \
+  $SUDO apt-get update && \
+  $SUDO apt-get install -y --no-install-recommends doca-sdk-gpunetio libdoca-sdk-gpunetio-dev libdoca-sdk-verbs-dev doca-ofed mstflint \
+)
+
+( \
+  cd /tmp && \
   git clone --depth 1 https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git && \
   cd etcd-cpp-apiv3 && \
   mkdir build && cd build && \
@@ -189,8 +199,11 @@ export CMAKE_PREFIX_PATH="${INSTALL_DIR}:${CMAKE_PREFIX_PATH}"
 # UCX transfers and can cause contention with local collectives.
 export UCX_TLS=^cuda_ipc
 
+#TODO remove this in PR
+#$SUDO sed -i 's/#define DOCA_GPUNETIO_VERBS_ENABLE_DEBUG 0/#define DOCA_GPUNETIO_VERBS_ENABLE_DEBUG 1/g' /opt/mellanox/doca/include/doca_gpunetio_verbs_def.h
+
 # shellcheck disable=SC2086
-meson setup nixl_build --prefix=${INSTALL_DIR} -Ducx_path=${UCX_INSTALL_DIR} -Dbuild_docs=true -Drust=false ${EXTRA_BUILD_ARGS} -Dlibfabric_path="${LIBFABRIC_INSTALL_DIR}"
+meson setup nixl_build --prefix=${INSTALL_DIR} -Ducx_path=${UCX_INSTALL_DIR} -Dbuild_docs=true -Drust=false ${EXTRA_BUILD_ARGS} # -Dlibfabric_path="${LIBFABRIC_INSTALL_DIR}"
 ninja -C nixl_build && ninja -C nixl_build install
 
 # TODO(kapila): Copy the nixl.pc file to the install directory if needed.
