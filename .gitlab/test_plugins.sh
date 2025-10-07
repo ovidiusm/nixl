@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # shellcheck disable=SC1091
-. "$(dirname "$0")/../.ci/scripts/common.sh"
+. "$(dirname "$0")/common.sh"
 
 set -e
 set -x
