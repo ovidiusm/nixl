@@ -505,8 +505,7 @@ RUN rm -rf build && \
     fi && \
     meson setup build/ --prefix=/usr/local/nixl --buildtype=$BUILD_TYPE $NIXL_EP_FLAG -Ducx_path=/usr/local \
     -Dcudapath_lib="/usr/local/cuda/lib64" \
-    -Dcudapath_inc="/usr/local/cuda/include" \
-    -Drelease_wheel=true && \
+    -Dcudapath_inc="/usr/local/cuda/include" && \
     cd build && \
     ninja && \
     ninja install
@@ -548,9 +547,8 @@ RUN IFS=',' read -ra PYTHON_VERSIONS <<< "$WHL_PYTHON_VERSIONS" && \
             $EP_BUILD_FLAGS ; \
     done
 
-# Copy the meta package wheel to the dist directory, which will be used to push to PyPI.
-# The meta-wheel is identical for cu12 and cu13 builds (it pins both backends via
-# -Drelease_wheel=true), so only emit it once — arbitrarily during the cu12 build.
-RUN if [ "$(echo $CUDA_VERSION | cut -d. -f1)" = "12" ]; then \
+# Copy the meta package wheel to the dist directory. This build is cu13 only, so
+# the meta wheel pins just nixl-cu13 (no -Drelease_wheel) and is emitted here.
+RUN if [ "$(echo $CUDA_VERSION | cut -d. -f1)" = "13" ]; then \
       cp build/src/bindings/python/nixl-meta/nixl*.whl dist/; \
     fi
