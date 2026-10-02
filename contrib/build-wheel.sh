@@ -103,8 +103,10 @@ PKG_NAME="nixl-cu${CUDA_MAJOR}"
 CU_TAG="cu$(nvcc --version | grep -Eo 'release [0-9]+\.[0-9]+' | cut -d' ' -f2 | tr -d .)"
 ./contrib/tomlutil.py --wheel-name $PKG_NAME pyproject.toml
 
-TORCH_STABLE_INDEX="https://download.pytorch.org/whl/${CU_TAG}"
 TORCH_NIGHTLY_INDEX="https://download.pytorch.org/whl/nightly/${CU_TAG}"
+
+# The only torch builds the EP extension is built for, keyed by MAJOR.MINOR.
+declare -A TORCH_PINS=(["2.15"]="2.15.0.dev20260909")
 
 # Build deps for the per-iteration venv; torch is installed separately.
 BUILD_DEPS=(
@@ -151,21 +153,16 @@ install_torch() {
     local VENV_PATH=$1
     local VER=$2
     local CHANNEL=$3
-    local MAJOR="${VER%%.*}"
-    local MINOR="${VER##*.}"
+    local PIN="${TORCH_PINS[$VER]:-}"
 
-    if [ "$CHANNEL" = "nightly" ]; then
-        uv pip install \
-            --python "$VENV_PATH/bin/python" \
-            --index-url "$TORCH_NIGHTLY_INDEX" \
-            --pre \
-            "torch>=${MAJOR}.${MINOR}.0.dev0,<${MAJOR}.$((MINOR + 1))"
-    else
-        uv pip install \
-            --python "$VENV_PATH/bin/python" \
-            --index-url "$TORCH_STABLE_INDEX" \
-            "torch==${VER}.*"
+    if [ -z "$PIN" ] || [ "$CHANNEL" != "nightly" ]; then
+        return 1
     fi
+    uv pip install \
+        --python "$VENV_PATH/bin/python" \
+        --index-url "$TORCH_NIGHTLY_INDEX" \
+        --pre \
+        "torch==${PIN}+${CU_TAG}"
 }
 
 # Create or reuse a venv with torch installed. uv's --dry-run does not

@@ -150,7 +150,7 @@ has_posix_plugin = has_linux_aio or has_io_uring or has_posix_aio
 # Check for CUObject Client library — try newest first so CUDA 13.2+ wheels
 # pick up the versioned pkg-config module that matches the build environment.
 cuobj_dep = dependency('', required: false)
-foreach _cuobj_pkg : ['cuobjclient-13.3', 'cuobjclient-13.2', 'cuobjclient-13.1']
+foreach _cuobj_pkg : ['cuobjclient-13.4', 'cuobjclient-13.3', 'cuobjclient-13.2', 'cuobjclient-13.1']
     _candidate = dependency(_cuobj_pkg, required: false)
     if _candidate.found()
         cuobj_dep = _candidate

@@ -52,7 +52,7 @@ GRPC_NPROC=${GRPC_NPROC:-$(nproc)}
 BUILD_TYPE="release"
 # CUDA MAJOR.MINOR for the manylinux wheel build — drives the torch cuXXX index
 # and the cu12/cu13 meta-wheel split. Applies whenever --cuda-version isn't given.
-CUDA_VERSION_DEFAULT="13.2"
+CUDA_VERSION_DEFAULT="13.4"
 CUDA_VERSION=${CUDA_VERSION:-}
 BUILD_INFINIA="false"
 INFINIA_LIBS_IMAGE="harbor.mellanox.com/nixl/infinia-libs:v2.4.0-beta.1"
