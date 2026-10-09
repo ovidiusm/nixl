@@ -103,10 +103,17 @@ PKG_NAME="nixl-cu${CUDA_MAJOR}"
 CU_TAG="cu$(nvcc --version | grep -Eo 'release [0-9]+\.[0-9]+' | cut -d' ' -f2 | tr -d .)"
 ./contrib/tomlutil.py --wheel-name $PKG_NAME pyproject.toml
 
-TORCH_NIGHTLY_INDEX="https://download.pytorch.org/whl/nightly/${CU_TAG}"
-
-# The only torch builds the EP extension is built for, keyed by MAJOR.MINOR.
-declare -A TORCH_PINS=(["2.15"]="2.15.0.dev20260909")
+# The stable cu134 index has no torch 2.12+ builds; with CUDA 13.4 install from
+# cu132, except torch 2.15, which is pinned per architecture to the cu134
+# nightly in vLLM's requirements/rubin-prerelease.txt.
+TORCH_CU_TAG="${CU_TAG}"
+[ "$CU_TAG" = "cu134" ] && TORCH_CU_TAG="cu132"
+TORCH_STABLE_INDEX="https://download.pytorch.org/whl/${TORCH_CU_TAG}"
+TORCH_NIGHTLY_INDEX="https://download.pytorch.org/whl/nightly/${TORCH_CU_TAG}"
+case "$(uname -m)" in
+    x86_64)  TORCH_215_PIN="2.15.0.dev20260928" ;;
+    aarch64) TORCH_215_PIN="2.15.0.dev20260926" ;;
+esac
 
 # Build deps for the per-iteration venv; torch is installed separately.
 BUILD_DEPS=(
@@ -153,16 +160,28 @@ install_torch() {
     local VENV_PATH=$1
     local VER=$2
     local CHANNEL=$3
-    local PIN="${TORCH_PINS[$VER]:-}"
+    local MAJOR="${VER%%.*}"
+    local MINOR="${VER##*.}"
 
-    if [ -z "$PIN" ] || [ "$CHANNEL" != "nightly" ]; then
-        return 1
+    if [ "$VER" = "2.15" ]; then
+        [ "$CHANNEL" = "nightly" ] || return 1
+        uv pip install \
+            --python "$VENV_PATH/bin/python" \
+            --index-url "https://download.pytorch.org/whl/nightly/${CU_TAG}" \
+            --pre \
+            "torch==${TORCH_215_PIN}+${CU_TAG}"
+    elif [ "$CHANNEL" = "nightly" ]; then
+        uv pip install \
+            --python "$VENV_PATH/bin/python" \
+            --index-url "$TORCH_NIGHTLY_INDEX" \
+            --pre \
+            "torch>=${MAJOR}.${MINOR}.0.dev0,<${MAJOR}.$((MINOR + 1))"
+    else
+        uv pip install \
+            --python "$VENV_PATH/bin/python" \
+            --index-url "$TORCH_STABLE_INDEX" \
+            "torch==${VER}.*"
     fi
-    uv pip install \
-        --python "$VENV_PATH/bin/python" \
-        --index-url "$TORCH_NIGHTLY_INDEX" \
-        --pre \
-        "torch==${PIN}+${CU_TAG}"
 }
 
 # Create or reuse a venv with torch installed. uv's --dry-run does not

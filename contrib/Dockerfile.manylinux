@@ -45,7 +45,7 @@ FROM ${MANYLINUX_IMAGE}_${ARCH}:${MANYLINUX_IMAGE_TAG} AS wheel_base
 ARG ARCH="x86_64"
 ARG DEFAULT_PYTHON_VERSION="3.14"
 
-# CUDA version (e.g. 12.9 / 13.4) — passed explicitly (was an ENV from the old
+# CUDA version (e.g. 12.9 / 13.2) — passed explicitly (was an ENV from the old
 # combined base). Drives the torch cuXXX index and the cu12/cu13 wheel split.
 # Default matches the BASE_IMAGE_TAG default above so a direct `docker build`
 # (bypassing build-container.sh / the CI yaml) still works.
@@ -362,11 +362,13 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN uv pip install --upgrade meson meson-python pybind11 patchelf pyYAML click setuptools tabulate auditwheel tomlkit
 # Install the default PyTorch used by the outer NIXL build. Per-version NIXL EP
 # extensions are built later in isolated environments by build-wheel.sh.
-# Pinned to the torch nightly that build-wheel.sh builds the EP extension for.
-ARG DEFAULT_TORCH_PIN="2.15.0.dev20260909"
+# torch 2.11 is not available on the cu132 index; 2.13 is the current default.
+ARG DEFAULT_TORCH_VERSION="2.13"
+# The stable cu134 index has no torch 2.12+ builds; with CUDA 13.4 install from cu132.
 RUN CU_TAG="cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d .)" && \
-    export UV_INDEX="https://download.pytorch.org/whl/nightly/${CU_TAG}" && \
-    uv pip install --pre "torch==${DEFAULT_TORCH_PIN}+${CU_TAG}"
+    if [ "$CU_TAG" = "cu134" ]; then CU_TAG=cu132; fi && \
+    export UV_INDEX="https://download.pytorch.org/whl/${CU_TAG}" && \
+    uv pip install "torch==${DEFAULT_TORCH_VERSION}.*"
 # Upgrade setuptools to latest version for compatibility with PEP 639 (license format)
 RUN uv pip install --upgrade 'setuptools>=80.9.0'
 
@@ -505,7 +507,8 @@ RUN rm -rf build && \
     fi && \
     meson setup build/ --prefix=/usr/local/nixl --buildtype=$BUILD_TYPE $NIXL_EP_FLAG -Ducx_path=/usr/local \
     -Dcudapath_lib="/usr/local/cuda/lib64" \
-    -Dcudapath_inc="/usr/local/cuda/include" && \
+    -Dcudapath_inc="/usr/local/cuda/include" \
+    -Drelease_wheel=true && \
     cd build && \
     ninja && \
     ninja install
@@ -526,8 +529,10 @@ RUN echo "/usr/local/nixl/lib/$ARCH-linux-gnu" > /etc/ld.so.conf.d/nixl.conf && 
 # Create the wheel
 # No need to specifically add path to libcuda.so here, meson finds the stubs and links them
 ARG WHL_PYTHON_VERSIONS="3.10,3.11,3.12,3.13,3.14"
-# build-wheel.sh builds only the pinned torch 2.15 nightly and skips any other version.
-ARG WHL_TORCH_VERSIONS="2.15"
+# Default is the union of what both CUDA majors can build: 2.11 is only on the
+# cu12 index, 2.14 only on the cu13 (nightly) one. build-wheel.sh skips the
+# versions it cannot resolve, so the same list works for either.
+ARG WHL_TORCH_VERSIONS="2.11,2.12,2.13,2.14,2.15"
 ARG WHL_PLATFORM="manylinux_2_28_$ARCH"
 RUN IFS=',' read -ra PYTHON_VERSIONS <<< "$WHL_PYTHON_VERSIONS" && \
     if [ "$BUILD_NIXL_EP" = "true" ]; then \
@@ -547,8 +552,9 @@ RUN IFS=',' read -ra PYTHON_VERSIONS <<< "$WHL_PYTHON_VERSIONS" && \
             $EP_BUILD_FLAGS ; \
     done
 
-# Copy the meta package wheel to the dist directory. This build is cu13 only, so
-# the meta wheel pins just nixl-cu13 (no -Drelease_wheel) and is emitted here.
-RUN if [ "$(echo $CUDA_VERSION | cut -d. -f1)" = "13" ]; then \
+# Copy the meta package wheel to the dist directory, which will be used to push to PyPI.
+# The meta-wheel is identical for cu12 and cu13 builds (it pins both backends via
+# -Drelease_wheel=true), so only emit it once — arbitrarily during the cu12 build.
+RUN if [ "$(echo $CUDA_VERSION | cut -d. -f1)" = "12" ]; then \
       cp build/src/bindings/python/nixl-meta/nixl*.whl dist/; \
     fi
